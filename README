@@ -1,0 +1,29 @@
+snipstrip.py
+------------
+
+snipstrip.py is a command-line tool to split up images of comic strips into
+individual frames. This is useful to read comics on handheld devices such as
+mobile phones, PDAs and handheld multimedia players.
+
+Usage:
+------
+$ python snipstrip.py <filename> [...]
+
+where arguments are the image files in the *current* directory (as of this
+release, sorry).
+
+This script will create files named 00-<filename> to NN-<filename> in the
+current directory (where NN is the number of frames in the comic strip.
+
+TODO:
+-----
+- Improve command line:
+    a. should not require the comic-strip file to be in the current directory.
+    b. should be able to specify output directory
+    c. should be able to specify a template for output directory
+- Add code for downloading and splitting webcomics, given a URL.
+- Distutils-lify the script
+
+CONTACT:
+--------
+Steven Fernandez <steve@lonetwin.net>
