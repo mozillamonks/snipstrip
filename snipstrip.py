@@ -99,18 +99,14 @@ def snip(filename):
     crop_at = start_at = 0
     # start by examining the candidate co-ordinates ...
     if debug: print "y candidates: ", y_candidates
-    for i, y_cord in enumerate(y_candidates):
-        if y_cord == 0:
-            continue
-        crop_at = y_cord
-        # If the current candidate co-ordinate is too close to the start
-        # co-ordinate (ie: difference is less than 10px) skip it.
-        if (crop_at - start_at) < 10:
+    for i, crop_at in enumerate(y_candidates):
+        # If the current candidate co-ordinate is 0 or is too close to the
+        # start co-ordinate (ie: difference is less than 10px) skip it.
+        if (crop_at == 0) or ((crop_at - start_at) < 10):
             continue
         # If the current candidate co-ordinate is too close to the next one
         # (ie: difference is less than 10px) skip it.
-        if (i+1 < len(y_candidates)) and ((y_candidates[i+1] - y_cord) < 10):
-            crop_at = y_candidates[i+1]
+        if (i+1 < len(y_candidates)) and ((y_candidates[i+1] - crop_at) < 10):
             continue
         else:
             if debug: print "crop()ing at ", (0, start_at, width, crop_at)
@@ -139,14 +135,10 @@ def snip(filename):
 
         if debug: print "x candidates: ", x_candidates
         crop_at = start_at = 0
-        for i, x_cord in enumerate(x_candidates):
-            if x_cord == 0:
+        for i, crop_at in enumerate(x_candidates):
+            if (crop_at == 0) or ((crop_at - start_at) < 10):
                 continue
-            crop_at = x_cord
-            if (crop_at - start_at) < 10:
-                continue
-            if (i+1 < len(x_candidates)) and ((x_candidates[i+1] - x_cord) < 10):
-                crop_at = x_candidates[i+1]
+            if (i+1 < len(x_candidates)) and ((x_candidates[i+1] - crop_at) < 10):
                 continue
             else:
                 if debug: print "crop()ing at ", (start_at, 0, crop_at, height)
