@@ -46,123 +46,217 @@ directory as the image file.
 """ % sys.argv[0]
 
 
-def gen_map_on_xaxis(img, x_cord):
-    color_map = {}
-    height    = img.size[1]
-    for y_cord in range(height):
-        color = img.getpixel((x_cord, y_cord))
-        color_map[color] = color_map.get(color, [])
-        color_map[color].append((x_cord, y_cord))
-    return color_map
+DEBUG = True
 
-def gen_map_on_yaxis(img, y_cord):
-    color_map = {}
-    width     = img.size[0]
-    for x_cord in range(width):
-        color = img.getpixel((x_cord, y_cord))
-        color_map[color] = color_map.get(color, [])
-        color_map[color].append((x_cord, y_cord))
-    return color_map
+class ComicPage:
+    """ Represents a single 'Page' of the comic.
 
-def snip(filename):
-    y_candidates = []
-    odir, ofile  = os.path.split(os.path.abspath(filename))
+    Terminology used in the code and comments:
+    Assuming that this is a comic page image ...
 
-    debug  = 0  # Print debug messages
-    img    = Image.open(filename)
-    bw_img = img.convert('1') # Convert to black+white
-    width, height = img.size[0], img.size[1]
-    print "image size: %dx%d" % (width, height)
+    +---------------------3-----------+
+    |         | |         | |         |
+    |    1    |2|         | |         |
+    |         | |         | |         |
+    |         | |         | |         |
+    4=========+++===5=====+++=========+
+    |         | |         | |         |
+    |         | |         | |         |
+    |<--------------6---------------->|
+    |         | |         | |         |
+    +---------------------------------+
 
-    # First we collect the candidates for splitting the image on the y-axis
-    # We do this by, iterating over each y co-ordinate in the image ...
-    for y_cord in range(height):
-        # ...then we generate a color_map for all co-ordinates on the x-axis
-        # for this y_cord.  The color_map is a map keyed by color. The value is
-        # a list of co-ordinates where the color was found.
-        color_map = gen_map_on_yaxis(bw_img, y_cord)
-        #for k, y in color_map.items():
-        #    print "%s: %d" % (k, len(y))
-        # Now, if there was just color, it is quite likely this is an 'edge'
-        # for the frames grid of the comic. We'll add this y_cord to the
-        # y_candidates list
-        if (len(color_map.keys()) < 2):
-            y_candidates.append(y_cord)
+    The entire thing above - Page
+    1 - A single Frame
+    2 - A vertical Gutter
+    3 - A likely X-candidate
+    4 - A likely Y-candidate
+    5 - A vertical Gutter
+    6 - A single row
+    """
 
-    # For the frames of the bottom-most strip, always snip at co-ordinate
-    # 'height'.
-    y_candidates.append(height)
+    def __init__(self, filename):
+        """ open() the file containing the page and get size information """
+        self.page = Image.open(filename)
+        # (0, 0) == (top, left)
+        self.width, self.height = self.page.size
+        # Convert to monochrome (easier to create a color map)
+        self.mono_page = self.page.convert(mode="1")
+        # list of rows in self.page. Each row is represented as
+        # the tuple (top, left, bottom, right)
+        self.rows   = []
+        # dict mapping frames to rows
+        self.frames = {}
 
-    # The second stage of the script. We start splitting the image along the
-    # y-axis.
-    strips = []
-    crop_at = start_at = 0
-    # start by examining the candidate co-ordinates ...
-    if debug: print "y candidates: ", y_candidates
-    for i, crop_at in enumerate(y_candidates):
-        # If the current candidate co-ordinate is 0 or is too close to the
-        # start co-ordinate (ie: difference is less than 10px) skip it.
-        if (crop_at == 0) or ((crop_at - start_at) < 10):
-            continue
-        # If the current candidate co-ordinate is too close to the next one
-        # (ie: difference is less than 10px) skip it.
-        if (i+1 < len(y_candidates)) and ((y_candidates[i+1] - crop_at) < 10):
-            continue
-        else:
-            if debug: print "crop()ing at ", (0, start_at, width, crop_at)
-            c = img.crop((0, start_at, width, crop_at))
-            #c.show()
-            strips.append(c)
-            start_at = crop_at
+    def __gen_map_for_ycord(self, y_cord):
+        """ gen_map_for_ycord(y_cord) -> {color1: [x_cord1, ...], ...}
 
-    # Now take each individually split 'strip' and split it along the x-axis
+        Given a position on the y-axis, returns a dict mapping color to the
+        points where the color was found for all points from (0, y_cord) to
+        (width, y_cord).
+        """
+        color_map = {}
+        for x_cord in range(self.width):
+            color = self.mono_page.getpixel((x_cord, y_cord))
+            color_map[color] = color_map.get(color, [])
+            color_map[color].append((x_cord, y_cord))
+        return color_map
 
-    # To do this we apply the same logic as above to guess the possible
-    # co-ordinates for the frames.
-    frames = []
-    for strip in strips:
-        bw_strip = strip.convert('1')
-        width, height = strip.size[0], strip.size[1]
+    def __gen_map_for_xcord(self, x_cord, row):
+        """ __gen_map_for_xcord(x_cord, row) -> {color1: [y_cord1, ...], ...}
+
+        Given a position on the x-axis, and a row (as generated by
+        get_by_row()), return a dict mapping color to the points where the
+        color was found for all points from (x_cord, row_upper_left)
+        to (x_cord, row_height).
+        """
+        color_map = {}
+        for y_cord in range(row[1], row[-1]):
+            color = self.mono_page.getpixel((x_cord, y_cord))
+            color_map[color] = color_map.get(color, [])
+            color_map[color].append((x_cord, y_cord))
+        return color_map
+
+
+    def get_by_row(self):
+        """ get_by_row() -> [row1, ...]
+
+        This method returns a list of frame rows, where each row is a set of
+        co-ordinates in the page, where you may crop() to obtain the row, ie:
+        [(top_left, top_gutter_start, bottom_right, bottom_gutter_end), ...]
+        """
+        y_candidates = []
+        # Brute force -- we iterate over each y co-ordinate on the page ...
+        for y_cord in range(self.height):
+            # ...then we generate a color_map for all points on the x-axis for
+            # this y_cord.  The color_map is a map keyed by color.
+            color_map = self.__gen_map_for_ycord(y_cord)
+            # Now, if there was just one color all along the x-axis (ie:
+            # len(color_map) == 1), it is quite likely this is (one row of)
+            # the horizontal gutter. We'll add the y_cord to the y_candidates
+            # list
+            if (len(color_map.keys()) == 1):
+                y_candidates.append(y_cord)
+
+        # For the frames of the bottom-most strip, always assume 'self.height'
+        # as the last 'candidate'
+        y_candidates.append(self.height)
+        # Now we filter out all the frame rows
+        self.snip('horizontal', y_candidates)
+        if DEBUG:
+            print "Number of rows in this comic: %d" % len(self.rows)
+            print "The rows are: %s" % self.rows
+            for row in self.rows:
+                self.page.crop(row).show()
+                raw_input("press any key to continue ...")
+        return self.rows
+
+    def get_by_frame(self, row):
+        """ get_by_frame(row) -> [frame1, ...]
+
+        Given a 'row' (in the manner returned by get_by_row()), this method
+        returns a list of frames within the row. Each frame represented as a
+        set of co-ordinates in the page, where you may crop() to obtain the
+        frame, ie:
+        [(top_left, top_gutter_start, bottom_right, bottom_gutter_end), ...]
+        """
         x_candidates = []
-        for x_cord in range(width):
-            color_map = gen_map_on_xaxis(bw_strip, x_cord)
-            if (len(color_map.keys()) < 2):
+        # Brute force -- we iterate over each x co-ordinate on the frame ...
+        for x_cord in range(row[0], self.width):
+            # ...then we generate a color_map for all points on the y-axis for
+            # this x_cord.  The color_map is a map keyed by color.
+            # XXX Hack -- since __gen_map_for_xcord() works on self.mono_page
+            # but we want it to only look at this page, we change
+            # self.mono_page
+            color_map = self.__gen_map_for_xcord(x_cord, row)
+            # Now, if there was just one color all along the x-axis (ie:
+            # len(color_map) == 1), it is quite likely this is (part of) the
+            # vertical gutter. We'll add this x_cord to the x_candidates list
+            if (len(color_map.keys()) == 1):
                 x_candidates.append(x_cord)
 
-        # For the left-most frames of each strip always snip at co-ordinate
-        # 'width'.
-        x_candidates.append(width)
+        # For the frames of the left-most strip, always assume 'self.width' as
+        # the last 'candidate'
+        x_candidates.append(self.width)
+        # Now we filter out all the frames
+        self.snip('vertical', x_candidates, row)
+        if DEBUG:
+            print "Number of frames in this row %s are %d" % \
+                                    (row, len(self.frames[row]))
+            print "The frames are: %s" % self.frames[row]
+            for frame in self.frames[row]:
+                self.page.crop(frame).show()
+                raw_input("press any key to continue ...")
+        return self.frames
 
-        if debug: print "x candidates: ", x_candidates
-        crop_at = start_at = 0
-        for i, crop_at in enumerate(x_candidates):
-            if (crop_at == 0) or ((crop_at - start_at) < 10):
+    def snip(self, snip_along, candidates, row=None):
+        """ snip(snip_along, start_at, candidates) -> None
+
+        The workhorse of this class. Given the axis to snip along (either
+        'horizontal' or 'vertical') and a list of candidate points for the
+        gutter, this function filters out the actual gutter position where one
+        may snip and sets self.rows/self.frames.
+
+        row is hack for snipping frame rows correctly ! Ugly i know
+        """
+        assert(snip_along in ('horizontal', 'vertical'))
+        if snip_along == 'vertical' and row == None:
+            raise("No row passed to snip() for extracting frames")
+        else:
+            self.frames[row] = []
+
+
+        # We have a list of likely candidates for the gutters, we filter out
+        # the frame rows or frames. We do this by:
+        # a. Selecting the first from a group of possibly adjacent points.
+        # b. If we are sufficiently far (>10px hard coded, ugly i know!) from
+        #    the previous candidate, we assume that we are in the next gutter
+        #    (ie: we assume that we have a row of frames or a single frame
+        #    between the current and the previous candidate).
+        gutter_start = gutter_end = 0
+        # start examining the candidate co-ordinates ...
+        for index, gutter_end in enumerate(candidates):
+            # If the current candidate is 0 or is too close to the start
+            # co-ordinate (ie: difference is less than 10px) skip it.
+            if (gutter_end == 0) or ((gutter_end - gutter_start) < 5):
                 continue
-            if (i+1 < len(x_candidates)) and ((x_candidates[i+1] - crop_at) < 10):
+            # If the current candidate co-ordinate is too close to the next one
+            # (ie: difference is less than 10px) skip it.
+            if (index+1 < len(candidates)) and \
+                    ((candidates[index+1] - gutter_end) < 5):
                 continue
             else:
-                if debug: print "crop()ing at ", (start_at, 0, crop_at, height)
-                c = strip.crop((start_at, 0, crop_at, height))
-                # c.show()
-                frames.append(c)
-                start_at = crop_at
+                if snip_along == 'horizontal':
+                    # save off the co-ordinates where we 'snip' this row
+                    self.rows.append((0, gutter_start, self.width, gutter_end))
+                elif snip_along == 'vertical':
+                    # save off the co-ordinates where we 'snip' this frame
+                    self.frames[row].append((gutter_start, row[1], gutter_end, row[-1]))
+                gutter_start = gutter_end
 
-    for index, frame in enumerate(frames):
-        frame_name = os.path.join(odir, "%.2d-%s" % (index, ofile))
-        print "writing frame %d as %s" % (index, frame_name)
-        fl = open(frame_name, 'w')
-        frame.save(fl)
-        fl.close()
+    def process(self):
+        """ process() -> None
+
+        Populate self.rows and self.frames
+        """
+        for index, row in enumerate(self.get_by_row()):
+            print "extracting frames from row %d (%s)" % (index, row)
+            self.get_by_frame(row)
+
+
+    def dump_data(self):
+        """ dump_data() -> <ComicPage data>
+
+        returns the data obtained after calling process() in a format yet to be
+        decided.
+        """
+        pass
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print usage
         sys.exit(1)
     for f in sys.argv[1:]:
-        try:
-            snip(f)
-        except IOError, e:
-            if e.errno == 2:
-                print "Error writing out output file"
-                print usage
+        c = ComicPage(f)
+        c.process()
 
