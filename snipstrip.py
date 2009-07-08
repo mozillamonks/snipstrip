@@ -66,6 +66,8 @@ class ComicPage:
 
     def __init__(self, filename):
         """ open() filename and get size information """
+
+        self.odir, self.ofile = os.path.split(os.path.abspath(filename))
         self.page = Image.open(filename)
         # (0, 0) == (top, left)
         self.width, self.height = self.page.size
@@ -247,6 +249,35 @@ class ComicPage:
             # ...snip each frame
             self.get_by_frame(row)
 
+    def write_to_disk(self, filename, row_or_frame):
+        """ write_to_disk(row_or_frame) -> None
+
+        Writes out the row or frame to disk.
+        """
+        fl = open(filename, 'w')
+        cropped = self.page.crop(row_or_frame)
+        cropped.save(fl)
+        fl.close()
+
+    def create_files(self, split_by='row'):
+        """ create_files(split_by='row') -> None
+
+        Splits the page by 'row' or 'frame' and creates files named with a two
+        digit number prefix in the same directory as the image file.
+        """
+        assert(split_by in ('row', 'frame'))
+        if split_by == 'row':
+            for index, row in enumerate(self.get_by_row()):
+                fname = os.path.join(self.odir, "%.2d-%s" % (index, self.ofile))
+                self.write_to_disk(fname, row)
+        else:
+            self.process()
+            index = 0
+            for row in self.rows:
+                for frame in self.frames[row]:
+                    fname = os.path.join(self.odir, "%.2d-%s" % (index, self.ofile))
+                    self.write_to_disk(fname, frame)
+                    index += 1
 
     def dump_data(self):
         """ dump_data() -> <ComicPage DATA>
@@ -265,6 +296,8 @@ if __name__ == '__main__':
         sys.exit(1)
     for f in sys.argv[1:]:
         c = ComicPage(f)
-        c.process()
+        # c.process()
+        # c.create_files(split_by='row')
+        # c.create_files(split_by='frame')
 else:
     DEBUG = False
