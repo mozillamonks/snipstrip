@@ -296,7 +296,7 @@ if __name__ == '__main__':
         sys.exit(1)
     for f in sys.argv[1:]:
         c = ComicPage(f)
-        # c.process()
+        c.process()
         # c.create_files(split_by='row')
         # c.create_files(split_by='frame')
 else:
