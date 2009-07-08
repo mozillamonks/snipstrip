@@ -1,30 +1,47 @@
 snipstrip.py
 ------------
+This module provides the ComicPage class which exports methods to split images
+of comic pages into individual rows or frames thus making it easier to read
+comics on handheld devices such as mobile phones, PDAs and handheld multimedia
+players.
 
-snipstrip.py is a command-line tool to split up images of comic strips into
-individual frames. This is useful for reading comics on handheld devices such
-as mobile phones, PDAs and handheld multimedia players.
+API Usage:
+----------
 
-Usage:
-------
+Initialization:
+>>> from snipstrip import ComicPage
+>>> p = ComicPage('some_comic.png')
+
+To snip off the rows within the comic page ...
+>>> rows = p.get_by_row()           # returns all the rows from the comic
+>>> for row in rows:
+...    p.page.crop(row).show()      # displays snipped rows in sequence
+...
+
+To snip the frames of any row
+>>> frames = p.get_by_frame(row)    # returns all the frames from the row
+>>> for frame in p.frames[row]:
+...    self.page.crop(frame).show() # displays snipped frames
+...
+
+To 'parse' the entire ComicPage in one go
+>>> p.process()  # call p.get_by_frame() over all p.get_by_row() rows
+
+CLI Usage:
+----------
+
 $ python snipstrip.py <filename> [...]
 
-where arguments are the image files in the *current* directory (as of this
-release, sorry).
-
-This script will create files named 00-<filename> to NN-<filename> in the
-current directory (where NN is the number of frames in the comic strip.
+where arguments are comic strip images
 
 TODO:
 -----
-- Improve command line:
-    1. should be able to specify output directory
-    2. should be able to specify a template for output directory
-    3. should be able to resize output files
-- Add code for downloading and splitting webcomics, given a URL.
-- Distutils-lify the script
+
+- Distutils-lify the module
+- Complete the dump() method to serialize the process()ed data
 
 CONTACT:
 --------
+
 Project Home: http://code.google.com/p/snipstrip/
 Author: Steven Fernandez <steve@lonetwin.net>
