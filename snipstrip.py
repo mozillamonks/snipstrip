@@ -302,6 +302,6 @@ if __name__ == '__main__':
         c = ComicPage(f)
         c.process()
         # c.create_files(split_by='row')
-         c.create_files(split_by='frame')
+        c.create_files(split_by='frame')
 else:
     DEBUG = False
