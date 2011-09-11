@@ -13,6 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# This program has been modified by the following people for Podhurl Inc.
+#
+# Robin Monks <devlinks AT gmail DOT com>
 """
 This module provides the ComicPage class which exports methods to split images
 of comic pages into individual rows or frames thus making it easier to read
@@ -35,7 +39,7 @@ http://www.pythonware.com/products/pil/
 """
     raise
 
-DEBUG = True
+DEBUG = False
 
 class ComicPage:
     """ Represents a single 'Page' of the comic.
@@ -298,6 +302,6 @@ if __name__ == '__main__':
         c = ComicPage(f)
         c.process()
         # c.create_files(split_by='row')
-        # c.create_files(split_by='frame')
+         c.create_files(split_by='frame')
 else:
     DEBUG = False
